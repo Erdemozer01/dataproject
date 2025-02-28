@@ -87,6 +87,7 @@ def index(request):
     @app.callback(
         Output("table", "figure"),
         Input("upload-data", "contents"),
+        Input("upload-data", "filename"),
     )
     def data(content, filename):
         pass
