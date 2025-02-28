@@ -11,6 +11,7 @@ def index(request):
     app = DjangoDash(name='index', external_stylesheets=[dbc.themes.BOOTSTRAP])
 
     app.layout = [
+
         html.Div(
             [
                 dbc.Row(
@@ -86,10 +87,11 @@ def index(request):
         )
     ]
 
-    app.callback(
+    @app.callback(
         Output("table", "figure"),
         Input("upload-data", "contents"),
     )
     def data(content, filename):
         pass
+
     return render(request, 'index.html')
