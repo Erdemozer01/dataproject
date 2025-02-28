@@ -10,9 +10,7 @@ def index(request):
 
     app = DjangoDash(name='index', external_stylesheets=[dbc.themes.BOOTSTRAP])
 
-    app.layout = [
-
-        html.Div(
+    app.layout = html.Div(
             [
                 dbc.Row(
                     [
@@ -85,7 +83,6 @@ def index(request):
 
             ], className="container"
         )
-    ]
 
     @app.callback(
         Output("table", "figure"),
