@@ -15,6 +15,7 @@ import io
 
 
 def index(request):
+
     app = DjangoDash(name='index', external_stylesheets=[dbc.themes.BOOTSTRAP])
 
     app.layout = html.Div(
@@ -33,7 +34,9 @@ def index(request):
 
                                     dcc.Tab(
                                         label="Veri",
+
                                         id="data",
+
                                         children=[
 
                                             html.Label(['Dosya Seçiniz'], className="mt-3",
@@ -62,6 +65,9 @@ def index(request):
                                             ),
 
                                             html.Div(id='data-info', className="mt-4"),
+                                            dcc.Store(id="store"),
+                                            dcc.Store(id="stats-data"),
+
                                         ]
                                     ),
 
@@ -80,6 +86,7 @@ def index(request):
                     dbc.Col(
 
                         md=7,
+
                         sm=7,
 
                         className="mt-4 shadow-lg container",
@@ -94,12 +101,35 @@ def index(request):
                             )
                         ]
                     ),
+
                 ],
             ),
 
-            html.Div(id="graph"),
-            dcc.Store(id='store'),
-            html.Div(id='output-data-upload'),
+            dbc.Row(
+                children=[
+                   dbc.Col(
+                       lg=11,
+                       md=11,
+                       className="container mt-4 shadow-lg mb-4",
+                       children=[
+                           dbc.Tabs(
+                               id="tabs",
+                               className="pt-2",
+                               children=[
+                                   dbc.Tab(
+                                       label="İstatistik",
+                                       className="p-3",
+                                       id="stats-tab",
+                                       children=[]
+                                   )
+                               ]
+                           ),
+
+                       ]
+                   )
+                ],
+            ),
+
 
         ], className="container"
     )
@@ -157,30 +187,25 @@ def index(request):
 
         return table_data, columns, store_data, info
 
-
-
     @app.callback(
-        Output('output-data-upload', 'children'),
-        Input('store', 'data')
+        Output('stats-tab', 'children'),
+        Input('store', 'data'),
     )
     def output_from_store(stored_data):
+
         df = pd.read_json(stored_data, orient='split')
 
-        return html.Div(
+        df = df.describe()
 
-            className="container p-2 mt-4",
+        df.reset_index(inplace=True)
 
-            children=[
-
-                dash_table.DataTable(
-                    data=df.to_dict('records'),
-                    columns=[{'name': i, 'id': i} for i in df.columns],
-                    page_size=10,
-                ),
-
-                html.Hr(),
-
-            ]
+        table = dash_table.DataTable(
+            data=df.to_dict('records'),
+            columns=[{'name': i, 'id': i} for i in df.columns],
+            style_table={'overflowX': 'auto'},
+            page_size=10
         )
+
+        return table
 
     return render(request, 'index.html')
