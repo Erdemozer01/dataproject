@@ -9,6 +9,8 @@ from dash import Input, Output, html, dcc, dash_table, State
 from data.components import parse_contents
 import pandas as pd
 import io
+import plotly.express as px
+
 
 
 # Create your views here.
@@ -72,9 +74,12 @@ def index(request):
                                     ),
 
                                     dcc.Tab(
-                                        label="Tab 2",
+                                        label="Grafik",
                                         children=[
-
+                                            dbc.Label('X Ekseni', className="mt-3", style={"font-weight": "bold"}),
+                                            dcc.Dropdown(id='x-axis',),
+                                            dbc.Label('Y Ekseni', className="mt-3", style={"font-weight": "bold"}),
+                                            dcc.Dropdown(id='y-axis', )
                                         ]
                                     ),
 
@@ -121,6 +126,17 @@ def index(request):
                                        className="p-3",
                                        id="stats-tab",
                                        children=[]
+                                   ),
+
+                                   dbc.Tab(
+                                       label="Grafikler",
+                                       className="p-3",
+                                       id="graph-tab",
+                                       children=[
+                                           dbc.Label("Grafikler", className="p-3"),
+                                           dcc.Dropdown(id='graph-option', placeholder='Grafik Seçiniz', options=['line'],),
+                                           dcc.Graph(id='graph-plot'),
+                                       ]
                                    )
                                ]
                            ),
@@ -139,6 +155,8 @@ def index(request):
         Output("table", "columns"),
         Output('store', 'data'),
         Output('data-info', 'children'),
+        Output('x-axis', 'options'),
+        Output('y-axis', 'options'),
 
         Input("upload-data", "contents"),
         State("upload-data", "filename"),
@@ -174,6 +192,10 @@ def index(request):
 
         columns = [{"name": i, "id": i} for i in df.columns]
 
+        x_axis = [i for i in df.columns]
+
+        y_axis = [i for i in df.columns]
+
         store_data = df.to_json(date_format='iso', orient='split')
 
         info = [
@@ -185,13 +207,18 @@ def index(request):
             html.P(datetime.datetime.fromtimestamp(date).date()),
         ]
 
-        return table_data, columns, store_data, info
+        return table_data, columns, store_data, info, x_axis, y_axis
 
     @app.callback(
         Output('stats-tab', 'children'),
+
         Input('store', 'data'),
+
     )
     def output_from_store(stored_data):
+
+        if stored_data is None:
+            raise PreventUpdate
 
         df = pd.read_json(stored_data, orient='split')
 
@@ -207,5 +234,31 @@ def index(request):
         )
 
         return table
+
+    @app.callback(
+        Output('graph-plot', 'figure'),
+
+        Input('store', 'data'),
+
+        Input('graph-option', 'value'),
+        Input('x-axis', 'value'),
+        Input('y-axis', 'value'),
+    )
+    def update_graph(data_store, graph, x_axis, y_axis):
+
+        if data is None:
+            raise PreventUpdate
+
+        data_frame = pd.read_json(data_store, orient='split')
+
+        if graph == 'line':
+
+            fig = px.line(data_frame, x=x_axis, y=y_axis, title='Life expectancy in Canada')
+
+            return fig
+
+        else:
+
+            raise PreventUpdate
 
     return render(request, 'index.html')
