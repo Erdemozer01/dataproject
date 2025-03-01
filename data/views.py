@@ -261,7 +261,7 @@ def index(request):
 
         if graph_type == 'line':
 
-            fig = px.line(data_frame.to_dict('records'), x=x_axis, y=y_axis, title='Life expectancy in Canada')
+            fig = px.line(data_frame, x=x_axis, y=y_axis, title='Life expectancy in Canada')
 
         return fig
 
