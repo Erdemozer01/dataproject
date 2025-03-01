@@ -252,15 +252,14 @@ def index(request):
     )
     def update_graph(data_store, graph_type, x_axis, y_axis):
 
+        global fig
+
         if data_store or graph_type is None:
             raise PreventUpdate
 
         data_frame = pd.DataFrame(data_store)
 
         if graph_type == 'line':
-
-            if x_axis is None:
-                raise PreventUpdate
 
             fig = px.line(data_frame.to_dict('records'), x=x_axis, y=y_axis, title='Life expectancy in Canada')
 
