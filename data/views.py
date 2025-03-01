@@ -72,7 +72,6 @@ def index(request):
 
                                             html.Div(id='data-info', className="mt-4"),
                                             dcc.Store(id="store"),
-                                            dcc.Store(id="stats-data"),
 
                                         ]
                                     ),
@@ -129,7 +128,14 @@ def index(request):
                                        label="İstatistik",
                                        className="p-3",
                                        id="stats-tab",
-                                       children=[]
+                                       children=[
+                                           dash_table.DataTable(
+                                               id='stats-table',
+
+                                               style_table={'overflowX': 'auto'},
+                                               page_size=10
+                                           )
+                                       ]
                                    ),
 
                                    dbc.Tab(
@@ -158,11 +164,13 @@ def index(request):
         Output("table", "data"),
         Output("table", "columns"),
 
-        Output('store', 'data'),
+        Output('stats-table', 'data'),
+        Output('stats-table', 'columns'),
 
         Output('data-info', 'children'),
         Output('x-axis', 'options'),
         Output('y-axis', 'options'),
+        Output('store', 'data'),
 
         Input("upload-data", "contents"),
         State("upload-data", "filename"),
@@ -202,7 +210,11 @@ def index(request):
 
         y_axis = [i for i in df.columns]
 
+        stats = df.describe()
 
+        stats.reset_index(inplace=True)
+
+        stats_data = stats.to_dict('records')
 
         info = [
             html.Hr(),
@@ -213,32 +225,7 @@ def index(request):
             html.P(datetime.datetime.fromtimestamp(date).date()),
         ]
 
-        return table_data, columns, table_data, info, x_axis, y_axis
-
-    @app.callback(
-        Output('stats-tab', 'children'),
-
-        Input('store', 'data'),
-    )
-    def output_from_store(stored_data):
-
-        if stored_data is None:
-            raise PreventUpdate
-
-        df = pd.DataFrame(stored_data)
-
-        df = df.describe()
-
-        df.reset_index(inplace=True)
-
-        table = dash_table.DataTable(
-            data=df.to_dict('records'),
-            columns=[{'name': i, 'id': i} for i in df.columns],
-            style_table={'overflowX': 'auto'},
-            page_size=10
-        )
-
-        return table
+        return table_data, columns, stats_data, columns, info, x_axis, y_axis, table_data
 
     @app.callback(
         Output('graph-plot', 'figure'),
@@ -251,14 +238,13 @@ def index(request):
     )
     def update_graph(data_store, graph, x_axis, y_axis):
 
-        if data is None:
+        if data_store is None:
             raise PreventUpdate
 
-        data_frame = data_store
 
         if graph == 'line':
 
-            fig = px.line(data_frame, x=x_axis, y=y_axis, title='Life expectancy in Canada')
+            fig = px.line(data_store, x=x_axis, y=y_axis, title='Life expectancy in Canada')
 
             return fig
 
