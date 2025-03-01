@@ -246,7 +246,6 @@ def index(request):
 
         Input('store', 'data'),
         Input('graph-type', 'value'),
-
         Input('x-axis', 'value'),
         Input('y-axis', 'value'),
     )
@@ -254,14 +253,14 @@ def index(request):
 
         global fig
 
-        if data_store or graph_type is None:
+        if data_store is None:
             raise PreventUpdate
 
         data_frame = pd.DataFrame(data_store)
 
         if graph_type == 'line':
 
-            fig = px.line(data_frame, x=x_axis, y=y_axis, title='Life expectancy in Canada')
+            fig = px.line(data_frame.to_dict("records"), x=x_axis, y=y_axis, title='Life expectancy in Canada')
 
         return fig
 
