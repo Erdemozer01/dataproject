@@ -28,6 +28,7 @@ ALLOWED_HOSTS = ['dataproject.pythonanywhere.com', '127.0.0.1']
 
 # Application definition
 
+
 INSTALLED_APPS = [
     'django.contrib.admin',
     'django.contrib.auth',
@@ -40,6 +41,8 @@ INSTALLED_APPS = [
     'django_plotly_dash.apps.DjangoPlotlyDashConfig',
 
 ]
+
+DATA_UPLOAD_MAX_MEMORY_SIZE=None
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
