@@ -12,12 +12,10 @@ import io
 import plotly.express as px
 
 
-
 # Create your views here.
 
 
 def index(request):
-
     app = DjangoDash(
         name='index',
         external_stylesheets=[dbc.themes.BOOTSTRAP],
@@ -79,8 +77,16 @@ def index(request):
                                     dcc.Tab(
                                         label="Grafik",
                                         children=[
+                                            dbc.Label("Grafik", style={"font-weight": "bold"}, className="mt-3"),
+                                            dcc.Dropdown(
+                                                id='graph-type',
+                                                placeholder='Grafik Seçiniz',
+                                                options=[
+                                                    {'label': 'Line', 'value': 'line'},
+                                                ]
+                                            ),
                                             dbc.Label('X Ekseni', className="mt-3", style={"font-weight": "bold"}),
-                                            dcc.Dropdown(id='x-axis',),
+                                            dcc.Dropdown(id='x-axis'),
                                             dbc.Label('Y Ekseni', className="mt-3", style={"font-weight": "bold"}),
                                             dcc.Dropdown(id='y-axis', className="mb-4")
                                         ]
@@ -115,57 +121,48 @@ def index(request):
 
             dbc.Row(
                 children=[
-                   dbc.Col(
-                       lg=11,
-                       md=11,
-                       className="container mt-4 shadow-lg mb-4",
-                       children=[
-                           dbc.Tabs(
-                               id="tabs",
-                               className="pt-2",
-                               children=[
-                                   dbc.Tab(
-                                       label="İstatistik",
-                                       className="p-3",
-                                       id="stats-tab",
-                                       children=[
-                                           dash_table.DataTable(
-                                               id='stats-table',
+                    dbc.Col(
+                        lg=11,
+                        md=11,
+                        className="container mt-4 shadow-lg mb-4",
+                        children=[
+                            dbc.Tabs(
+                                id="tabs",
+                                className="pt-2",
+                                children=[
+                                    dbc.Tab(
+                                        label="İstatistik",
+                                        className="p-3",
+                                        id="stats-tab",
+                                        children=[
 
-                                               style_table={'overflowX': 'auto'},
-                                               page_size=10
-                                           )
-                                       ]
-                                   ),
+                                        ]
+                                    ),
 
-                                   dbc.Tab(
-                                       label="Grafikler",
-                                       className="p-3",
-                                       id="graph-tab",
-                                       children=[
-                                           dbc.Label("Grafikler", className="p-3"),
-                                           dcc.Dropdown(id='graph-option', placeholder='Grafik Seçiniz', options=['line'],),
-                                           dcc.Graph(id='graph-plot'),
-                                       ]
-                                   )
-                               ]
-                           ),
+                                    dbc.Tab(
+                                        label="Grafikler",
+                                        className="p-3",
+                                        id="graph-tab",
+                                        children=[
+                                            dcc.Graph(id="graph-display"),
+                                        ]
 
-                       ]
-                   )
+                                    )
+                                ]
+                            ),
+
+                        ]
+                    )
                 ],
             ),
-
 
         ], className="container"
     )
 
     @app.callback(
+
         Output("table", "data"),
         Output("table", "columns"),
-
-        Output('stats-table', 'data'),
-        Output('stats-table', 'columns'),
 
         Output('data-info', 'children'),
         Output('x-axis', 'options'),
@@ -210,12 +207,6 @@ def index(request):
 
         y_axis = [i for i in df.columns]
 
-        stats = df.describe()
-
-        stats.reset_index(inplace=True)
-
-        stats_data = stats.to_dict('records')
-
         info = [
             html.Hr(),
             html.Label("Dosya Adı"),
@@ -225,31 +216,54 @@ def index(request):
             html.P(datetime.datetime.fromtimestamp(date).date()),
         ]
 
-        return table_data, columns, stats_data, columns, info, x_axis, y_axis, table_data
+        return table_data, columns, info, x_axis, y_axis, table_data
 
     @app.callback(
-        Output('graph-plot', 'figure'),
+        Output('stats-tab', 'children'),
+        Input('store', 'data'),
+    )
+    def load_stats_table(store_data):
+
+        if store_data is None:
+            raise PreventUpdate
+
+        df = pd.DataFrame(store_data)
+        df = df.describe()
+        df.reset_index(inplace=True)
+
+        stats_table = dash_table.DataTable(
+            id='stats-table',
+            data=df.to_dict('records'),
+            columns=[{"name": i, "id": i} for i in df.columns],
+            style_table={'overflowX': 'auto'},
+            page_size=10
+        )
+
+        return stats_table
+
+    @app.callback(
+        Output('graph-display', 'figure'),
 
         Input('store', 'data'),
+        Input('graph-type', 'value'),
 
-        Input('graph-option', 'value'),
         Input('x-axis', 'value'),
         Input('y-axis', 'value'),
     )
-    def update_graph(data_store, graph, x_axis, y_axis):
+    def update_graph(data_store, graph_type, x_axis, y_axis):
 
-        if data_store is None:
+        if data_store or graph_type is None:
             raise PreventUpdate
 
+        data_frame = pd.DataFrame(data_store)
 
-        if graph == 'line':
+        if graph_type == 'line':
 
-            fig = px.line(data_store, x=x_axis, y=y_axis, title='Life expectancy in Canada')
+            if x_axis is None:
+                raise PreventUpdate
 
-            return fig
+            fig = px.line(data_frame, x=x_axis, y=y_axis, title='Life expectancy in Canada')
 
-        else:
-
-            raise PreventUpdate
+        return fig
 
     return render(request, 'index.html')
