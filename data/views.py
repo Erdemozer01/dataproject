@@ -18,7 +18,11 @@ import plotly.express as px
 
 def index(request):
 
-    app = DjangoDash(name='index', external_stylesheets=[dbc.themes.BOOTSTRAP])
+    app = DjangoDash(
+        name='index',
+        external_stylesheets=[dbc.themes.BOOTSTRAP],
+        update_title="Güncelleniyor...",
+    )
 
     app.layout = html.Div(
         [
@@ -79,7 +83,7 @@ def index(request):
                                             dbc.Label('X Ekseni', className="mt-3", style={"font-weight": "bold"}),
                                             dcc.Dropdown(id='x-axis',),
                                             dbc.Label('Y Ekseni', className="mt-3", style={"font-weight": "bold"}),
-                                            dcc.Dropdown(id='y-axis', )
+                                            dcc.Dropdown(id='y-axis', className="mb-4")
                                         ]
                                     ),
 
@@ -153,7 +157,9 @@ def index(request):
     @app.callback(
         Output("table", "data"),
         Output("table", "columns"),
+
         Output('store', 'data'),
+
         Output('data-info', 'children'),
         Output('x-axis', 'options'),
         Output('y-axis', 'options'),
@@ -196,7 +202,7 @@ def index(request):
 
         y_axis = [i for i in df.columns]
 
-        store_data = df.to_json(date_format='iso', orient='split')
+
 
         info = [
             html.Hr(),
@@ -207,20 +213,19 @@ def index(request):
             html.P(datetime.datetime.fromtimestamp(date).date()),
         ]
 
-        return table_data, columns, store_data, info, x_axis, y_axis
+        return table_data, columns, table_data, info, x_axis, y_axis
 
     @app.callback(
         Output('stats-tab', 'children'),
 
         Input('store', 'data'),
-
     )
     def output_from_store(stored_data):
 
         if stored_data is None:
             raise PreventUpdate
 
-        df = pd.read_json(stored_data, orient='split')
+        df = pd.DataFrame(stored_data)
 
         df = df.describe()
 
@@ -249,7 +254,7 @@ def index(request):
         if data is None:
             raise PreventUpdate
 
-        data_frame = pd.read_json(data_store, orient='split')
+        data_frame = data_store
 
         if graph == 'line':
 
