@@ -205,9 +205,7 @@ def index(request):
             html.Hr(),
         ]
 
-        x_axis = [i for i in df.columns]
-        y_axis = [i for i in df.columns]
-        color = [i for i in df.columns]
+        axis = [i for i in df.columns]
 
         data_table = [dash_table.DataTable(
             data=df.to_dict('records'),
@@ -227,7 +225,7 @@ def index(request):
             page_size=10
         )]
 
-        return file_info, data_table, stats_table, x_axis, y_axis, color
+        return file_info, data_table, stats_table, axis, axis, axis
 
     @app.callback(
         Output("graph-display", "figure"),
