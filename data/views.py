@@ -122,7 +122,7 @@ def index(request):
                 children=[
 
                     dbc.Col(
-                        className="container mt-4 shadow-lg mb-4",
+                        className="container mt-2 shadow-lg mb-4",
                         children=[
                             dbc.Tabs(
                                 id="tabs",
@@ -135,7 +135,7 @@ def index(request):
                                     ),
 
                                     dcc.Tab(
-                                        label="Grafikler",
+                                        label="Grafik",
                                         id="graph-tab",
                                         children=[dcc.Graph(id="graph-display")],
                                     )
@@ -146,9 +146,7 @@ def index(request):
                     )
                 ],
             ),
-
         ],
-
     )
 
     @app.callback(
