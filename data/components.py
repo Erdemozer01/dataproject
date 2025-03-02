@@ -32,7 +32,6 @@ navbar = dbc.Navbar(
     dark=True,
     fixed=True,
     sticky="top",
-    className="rounded-2 mt-2",
     children=dbc.Container(
 
         children=[
