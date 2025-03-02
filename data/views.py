@@ -70,7 +70,6 @@ def index(request):
 
                                             dcc.Store(id="data-info"),
                                             dcc.Store(id="data-filename"),
-
                                             html.Div(id='file-info', className="mt-4"),
 
                                         ]
@@ -141,7 +140,9 @@ def index(request):
                                         label="Grafikler",
                                         className="p-3",
                                         id="graph-tab",
+                                        children=[
 
+                                        ]
                                     )
                                 ]
                             ),
@@ -256,11 +257,8 @@ def index(request):
         if graph_type == 'line':
 
             if x_axis and y_axis:
-
-                fig = px.line(df.to_dict("records"), x=x_axis, y=y_axis)
-
+                fig = px.line(df, x=x_axis, y=y_axis)
             else:
-
                 raise PreventUpdate
 
         return dcc.Graph(figure=fig)
