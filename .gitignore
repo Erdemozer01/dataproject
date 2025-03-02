@@ -30,5 +30,7 @@ apps/static/assets/yarn.lock
 apps/static/assets/.temp
 
 .idea
-db.sqlite3
 
+requirements.txt
+
+db.sqlite3
