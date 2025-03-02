@@ -39,7 +39,6 @@ INSTALLED_APPS = [
     'data.apps.DataConfig',
 
     'django_plotly_dash.apps.DjangoPlotlyDashConfig',
-
 ]
 
 DATA_UPLOAD_MAX_MEMORY_SIZE=None

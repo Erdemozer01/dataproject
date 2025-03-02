@@ -68,8 +68,10 @@ def index(request):
                                                 multiple=False
                                             ),
 
-                                            html.Div(id='data-info', className="mt-4"),
-                                            dcc.Store(id="store"),
+                                            dcc.Store(id="data-info"),
+                                            dcc.Store(id="data-filename"),
+
+                                            html.Div(id='file-info', className="mt-4"),
 
                                         ]
                                     ),
@@ -108,11 +110,7 @@ def index(request):
                         children=[
                             html.H4(["Veri Seti"], className="text-center mt-3"),
                             html.Hr(),
-                            dash_table.DataTable(
-                                id='table',
-                                page_size=10,
-                                style_table={'overflowX': 'auto'},
-                            )
+                            html.Div(id="data-table")
                         ]
                     ),
 
@@ -133,7 +131,7 @@ def index(request):
                                     dbc.Tab(
                                         label="İstatistik",
                                         className="p-3",
-                                        id="stats-tab",
+                                        id="stats-table",
                                         children=[
 
                                         ]
@@ -143,9 +141,6 @@ def index(request):
                                         label="Grafikler",
                                         className="p-3",
                                         id="graph-tab",
-                                        children=[
-                                            dcc.Graph(id="graph-display"),
-                                        ]
 
                                     )
                                 ]
@@ -160,20 +155,13 @@ def index(request):
     )
 
     @app.callback(
-
-        Output("table", "data"),
-        Output("table", "columns"),
-
-        Output('data-info', 'children'),
-        Output('x-axis', 'options'),
-        Output('y-axis', 'options'),
-        Output('store', 'data'),
+        Output('data-info', 'data'),
+        Output('data-filename', 'data'),
 
         Input("upload-data", "contents"),
         State("upload-data", "filename"),
-        State("upload-data", "last_modified"),
     )
-    def data(contents, filename, date):
+    def read_data(contents, filename):
 
         global df
 
@@ -182,86 +170,100 @@ def index(request):
 
         content_type, content_string = str(contents).split(',')
 
-        decoded = base64.b64decode(content_string)
+        decoded = base64.b64decode(content_string).decode('utf-8')
 
-        try:
-
-            if 'csv' in filename:
-                # Assume that the user uploaded a CSV file
-                df = pd.read_csv(
-                    io.StringIO(decoded.decode('utf-8')))
-            elif 'xls' in filename:
-                # Assume that the user uploaded an excel file
-                df = pd.read_excel(io.BytesIO(decoded))
-
-        except Exception as e:
-            return html.Div([
-                'There was an error processing this file.'
-            ])
-
-        table_data = df.to_dict('records')
-
-        columns = [{"name": i, "id": i} for i in df.columns]
-
-        x_axis = [i for i in df.columns]
-
-        y_axis = [i for i in df.columns]
-
-        info = [
-            html.Hr(),
-            html.Label("Dosya Adı"),
-            html.H4(filename),
-            html.Hr(),
-            html.Label("Değiştirme tarihi"),
-            html.P(datetime.datetime.fromtimestamp(date).date()),
-        ]
-
-        return table_data, columns, info, x_axis, y_axis, table_data
+        return decoded, filename
 
     @app.callback(
-        Output('stats-tab', 'children'),
-        Input('store', 'data'),
+        Output("file-info", "children"),
+        Output('data-table', 'children'),
+        Output('stats-table', 'children'),
+        Output('x-axis', 'options'),
+        Output('y-axis', 'options'),
+
+        Input('data-info', 'data'),
+        Input('data-filename', 'data'),
     )
-    def load_stats_table(store_data):
+    def table(store_data, filename):
+        global df
 
         if store_data is None:
             raise PreventUpdate
 
-        df = pd.DataFrame(store_data)
+        if 'csv' in filename:
+
+            # Assume that the user uploaded a CSV file
+            df = pd.read_csv(io.StringIO(store_data))
+
+        elif 'xls' in filename:
+
+            # Assume that the user uploaded an excel file
+            df = pd.read_excel(io.BytesIO(store_data))
+
+        file_info = [
+            html.Hr(),
+            html.Label("Dosya Adı"),
+            html.H4(filename),
+            html.Hr(),
+        ]
+
+        x_axis = [i for i in df.columns]
+        y_axis = [i for i in df.columns]
+
+        data_table = [dash_table.DataTable(
+            data=df.to_dict('records'),
+            columns=[{"name": i, "id": i} for i in df.columns],
+            page_size=10,
+            style_table={'overflowX': 'auto'},
+        )]
+
         df = df.describe()
         df.reset_index(inplace=True)
 
-        stats_table = dash_table.DataTable(
+        stats_table = [dash_table.DataTable(
             id='stats-table',
             data=df.to_dict('records'),
             columns=[{"name": i, "id": i} for i in df.columns],
             style_table={'overflowX': 'auto'},
             page_size=10
-        )
+        )]
 
-        return stats_table
+        return file_info, data_table, stats_table, x_axis, y_axis
 
     @app.callback(
-        Output('graph-display', 'figure'),
+        Output("graph-tab", "children"),
 
-        Input('store', 'data'),
-        Input('graph-type', 'value'),
-        Input('x-axis', 'value'),
-        Input('y-axis', 'value'),
+        Input("data-info", "data"),
+        Input("data-filename", "data"),
+        Input("graph-type", "value"),
+        Input("x-axis", "value"),
+        Input("y-axis", "value"),
     )
-    def update_graph(data_store, graph_type, x_axis, y_axis):
+    def graph_display(data, filename, graph_type, x_axis, y_axis):
+        global df, fig
 
-        global fig
-
-        if data_store is None:
+        if graph_type is None:
             raise PreventUpdate
 
-        data_frame = pd.DataFrame(data_store)
+        if 'csv' in filename:
+            # Assume that the user uploaded a CSV file
+            df = pd.read_csv(io.StringIO(data))
+
+        elif 'xls' in filename:
+            # Assume that the user uploaded an excel file
+            df = pd.read_excel(io.BytesIO(data))
 
         if graph_type == 'line':
 
-            fig = px.line(data_frame, x=x_axis, y=y_axis, title='Life expectancy in Canada')
+            if x_axis and y_axis:
 
-        return fig
+                fig = px.line(df.to_dict("records"), x=x_axis, y=y_axis)
+
+            else:
+
+                raise PreventUpdate
+
+        return dcc.Graph(figure=fig)
+
 
     return render(request, 'index.html')
