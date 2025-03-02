@@ -6,7 +6,7 @@ from django.shortcuts import render
 from django_plotly_dash import DjangoDash
 import dash_bootstrap_components as dbc
 from dash import Input, Output, html, dcc, dash_table, State
-from data.components import parse_contents
+from data.components import navbar
 import pandas as pd
 import io
 import plotly.express as px
@@ -23,15 +23,17 @@ def index(request):
     )
 
     app.layout = html.Div(
-        [
+        className="container",
+
+        children=[
             dbc.Row(
-                [
+                children=[
+                    navbar,
                     dbc.Col(
                         md=4,
-                        id="tab-panel",
-                        className="mt-4 shadow-lg",
+                        sm=4,
                         children=[
-                            dcc.Tabs(
+                            dbc.Tabs(
                                 id="tabs",
                                 className="pt-2",
                                 children=[
@@ -89,28 +91,28 @@ def index(request):
                                             dbc.Label('X Ekseni', className="mt-3", style={"font-weight": "bold"}),
                                             dcc.Dropdown(id='x-axis'),
                                             dbc.Label('Y Ekseni', className="mt-3", style={"font-weight": "bold"}),
-                                            dcc.Dropdown(id='y-axis', className="mb-4")
+                                            dcc.Dropdown(id='y-axis'),
+                                            dbc.Label('Gruplandır', className="mt-3", style={"font-weight": "bold"}),
+                                            dcc.Dropdown(id='color'),
+                                            html.Hr()
                                         ]
                                     ),
 
                                 ]
                             )
-                        ]
+                        ],
+                        className="container mt-4 shadow-lg mb-4",
                     ),
 
                     dbc.Col(
-
-                        md=7,
-
-                        sm=7,
-
-                        className="mt-4 shadow-lg container",
-
+                        md=8,
+                        sm=8,
                         children=[
                             html.H4(["Veri Seti"], className="text-center mt-3"),
                             html.Hr(),
                             html.Div(id="data-table")
-                        ]
+                        ],
+                        className="container mt-4 shadow-lg mb-4",
                     ),
 
                 ],
@@ -119,15 +121,14 @@ def index(request):
             dbc.Row(
                 children=[
                     dbc.Col(
-                        lg=11,
-                        md=11,
+
                         className="container mt-4 shadow-lg mb-4",
                         children=[
                             dbc.Tabs(
                                 id="tabs",
                                 className="pt-2",
                                 children=[
-                                    dbc.Tab(
+                                    dcc.Tab(
                                         label="İstatistik",
                                         className="p-3",
                                         id="stats-table",
@@ -136,13 +137,10 @@ def index(request):
                                         ]
                                     ),
 
-                                    dbc.Tab(
+                                    dcc.Tab(
                                         label="Grafikler",
                                         className="p-3",
                                         id="graph-tab",
-                                        children=[
-
-                                        ]
                                     )
                                 ]
                             ),
@@ -152,7 +150,8 @@ def index(request):
                 ],
             ),
 
-        ], className="container"
+        ],
+
     )
 
     @app.callback(
@@ -181,6 +180,7 @@ def index(request):
         Output('stats-table', 'children'),
         Output('x-axis', 'options'),
         Output('y-axis', 'options'),
+        Output('color', 'options'),
 
         Input('data-info', 'data'),
         Input('data-filename', 'data'),
@@ -210,6 +210,7 @@ def index(request):
 
         x_axis = [i for i in df.columns]
         y_axis = [i for i in df.columns]
+        color = [i for i in df.columns]
 
         data_table = [dash_table.DataTable(
             data=df.to_dict('records'),
@@ -229,7 +230,7 @@ def index(request):
             page_size=10
         )]
 
-        return file_info, data_table, stats_table, x_axis, y_axis
+        return file_info, data_table, stats_table, x_axis, y_axis, color
 
     @app.callback(
         Output("graph-tab", "children"),
@@ -239,9 +240,10 @@ def index(request):
         Input("graph-type", "value"),
         Input("x-axis", "value"),
         Input("y-axis", "value"),
+        Input("color", "value"),
     )
-    def graph_display(data, filename, graph_type, x_axis, y_axis):
-        global df, fig
+    def graph_display(data, filename, graph_type, x_axis, y_axis, color):
+        global df, fig, graph
 
         if graph_type is None:
             raise PreventUpdate
@@ -258,10 +260,11 @@ def index(request):
 
             if x_axis and y_axis:
                 fig = px.line(df, x=x_axis, y=y_axis)
+                if color is not None:
+                    fig = px.line(df, x=x_axis, y=y_axis, color=color)
             else:
                 raise PreventUpdate
 
         return dcc.Graph(figure=fig)
-
 
     return render(request, 'index.html')
