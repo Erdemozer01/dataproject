@@ -120,8 +120,8 @@ def index(request):
 
             dbc.Row(
                 children=[
-                    dbc.Col(
 
+                    dbc.Col(
                         className="container mt-4 shadow-lg mb-4",
                         children=[
                             dbc.Tabs(
@@ -132,15 +132,12 @@ def index(request):
                                         label="İstatistik",
                                         className="p-3",
                                         id="stats-table",
-                                        children=[
-
-                                        ]
                                     ),
 
                                     dcc.Tab(
                                         label="Grafikler",
-                                        className="p-3",
                                         id="graph-tab",
+                                        children=[dcc.Graph(id="graph-display")],
                                     )
                                 ]
                             ),
@@ -233,7 +230,7 @@ def index(request):
         return file_info, data_table, stats_table, x_axis, y_axis, color
 
     @app.callback(
-        Output("graph-tab", "children"),
+        Output("graph-display", "figure"),
 
         Input("data-info", "data"),
         Input("data-filename", "data"),
@@ -265,6 +262,6 @@ def index(request):
             else:
                 raise PreventUpdate
 
-        return dcc.Graph(figure=fig)
+        return fig
 
     return render(request, 'index.html')
