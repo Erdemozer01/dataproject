@@ -12,10 +12,8 @@ import io
 import plotly.express as px
 
 
-# Create your views here.
-
-
 def index(request):
+
     app = DjangoDash(
         name='index',
         external_stylesheets=[dbc.themes.BOOTSTRAP],
@@ -26,9 +24,13 @@ def index(request):
         className="container",
 
         children=[
+
             dbc.Row(
+
                 children=[
+
                     navbar,
+
                     dbc.Col(
                         md=4,
                         sm=4,
@@ -86,14 +88,67 @@ def index(request):
                                                 placeholder='Grafik Seçiniz',
                                                 options=[
                                                     {'label': 'Line', 'value': 'line'},
+                                                    {'label': 'Histogram (Dağılım)', 'value': 'hist'},
                                                 ]
                                             ),
                                             dbc.Label('X Ekseni', className="mt-3", style={"font-weight": "bold"}),
-                                            dcc.Dropdown(id='x-axis'),
+                                            dcc.Dropdown(id='x-axis', placeholder='X Ekseni Seçiniz'),
                                             dbc.Label('Y Ekseni', className="mt-3", style={"font-weight": "bold"}),
-                                            dcc.Dropdown(id='y-axis'),
+                                            dcc.Dropdown(id='y-axis', placeholder="Y Ekseni Seçiniz"),
                                             dbc.Label('Gruplandır', className="mt-3", style={"font-weight": "bold"}),
                                             dcc.Dropdown(id='color'),
+                                            html.Hr()
+                                        ]
+                                    ),
+
+                                    dcc.Tab(
+                                        label="Histogram",
+                                        children=[
+                                            dbc.Label("Normal", style={"font-weight": "bold"}, className="mt-3"),
+                                            dcc.Dropdown(
+                                                id='histnorm',
+                                                placeholder='Normal',
+                                                className="mb-2",
+                                                options=[
+                                                    {'label': 'Yüzde', 'value': 'percent'},
+                                                    {'label': 'Olasılık', 'value': 'probability'},
+                                                ]
+                                            ),
+
+                                            dbc.Label("Histogram Fonksiyonu", style={"font-weight": "bold"}, className="mt-3"),
+                                            dcc.Dropdown(
+                                                id='histfunc',
+                                                placeholder='Histogram Fonksiyonu',
+                                                className="mb-2",
+                                                options=[
+                                                    {'label': 'Ortalama', 'value': 'avg'},
+                                                    {'label': 'Toplam', 'value': 'sum'},
+                                                    {'label': 'Count', 'value': 'count'},
+                                                ]
+                                            ),
+
+                                            dbc.Label("Marjinal", style={"font-weight": "bold"},
+                                                      className="mt-3"),
+                                            dcc.Dropdown(
+                                                id='marginal',
+                                                placeholder='Marjinal Grafik',
+                                                className="mb-2",
+                                                options=[
+                                                    {'label': 'Çizgi', 'value': 'rug'},
+                                                    {'label': 'Box', 'value': 'box'},
+                                                    {'label': 'violin', 'value': 'violin'},
+                                                ]
+                                            ),
+
+
+                                            dcc.Checklist(
+                                                id="text_auto",
+                                                options=[
+                                                    {'label': 'Değerler', 'value': True},
+                                                ],
+                                                value=False
+                                            ),
+
                                             html.Hr()
                                         ]
                                     ),
@@ -234,8 +289,12 @@ def index(request):
         Input("x-axis", "value"),
         Input("y-axis", "value"),
         Input("color", "value"),
+        Input("histnorm", "value"),
+        Input("text_auto", "value"),
+        Input("histfunc", "value"),
+        Input("marginal", "value"),
     )
-    def graph_display(data, filename, graph_type, x_axis, y_axis, color):
+    def graph_display(data, filename, graph_type, x_axis, y_axis, color, histnorm, text_auto, histfunc, marginal):
         global df, fig, graph
 
         if graph_type is None:
@@ -252,11 +311,13 @@ def index(request):
         if graph_type == 'line':
 
             if x_axis and y_axis:
-                fig = px.line(df, x=x_axis, y=y_axis)
-                if color is not None:
-                    fig = px.line(df, x=x_axis, y=y_axis, color=color)
+                fig = px.line(df, x=x_axis, y=y_axis, color=color)
+
             else:
                 raise PreventUpdate
+
+        elif graph_type == 'hist':
+            fig = px.histogram(df, x=x_axis, y=y_axis, histnorm=histnorm, text_auto=bool(text_auto), color=color, histfunc=histfunc, marginal=marginal)
 
         return fig
 
