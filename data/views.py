@@ -32,6 +32,7 @@ def index(request):
                     navbar,
 
                     dbc.Col(
+                        className="container mt-4 shadow-lg mb-4",
                         md=4,
                         sm=4,
                         children=[
@@ -141,12 +142,53 @@ def index(request):
                                             ),
 
 
+
                                             dcc.Checklist(
                                                 id="text_auto",
+                                                className="mt-3",
                                                 options=[
-                                                    {'label': 'Değerler', 'value': True},
+                                                    {'label': 'Değerleri Göster', 'value': True},
                                                 ],
                                                 value=False
+                                            ),
+
+                                            html.Hr()
+                                        ]
+                                    ),
+
+                                    dcc.Tab(
+                                        label="Model",
+                                        children=[
+                                            dbc.Label("Model", style={"font-weight": "bold"}, className="mt-3"),
+                                            dcc.Dropdown(
+                                                id='model',
+                                                placeholder='Model Seçiniz',
+                                                className="mb-2",
+                                                options=[
+                                                    {'label': 'LinearRegresyon', 'value': 'linear'},
+                                                    {'label': 'MultipleLinearRegresyon', 'value': 'mlinear'},
+                                                ]
+                                            ),
+
+                                            dbc.Label("Bağımlı Değişken", style={"font-weight": "bold"},
+                                                      className="mt-3"),
+                                            dcc.Dropdown(
+                                                id='depend',
+
+                                                placeholder='Bağımlı Değişken',
+                                                className="mb-2",
+
+                                            ),
+
+                                            dbc.Label("Bağımsız Değişken", style={"font-weight": "bold"},
+                                                      className="mt-3"),
+
+                                            dcc.Dropdown(
+                                                id='independ',
+
+                                                placeholder='Bağımsız Değişken',
+                                                className="mb-2",
+
                                             ),
 
                                             html.Hr()
@@ -156,10 +198,10 @@ def index(request):
                                 ]
                             )
                         ],
-                        className="container mt-4 shadow-lg mb-4",
                     ),
 
                     dbc.Col(
+                        className="container mt-4 shadow-lg mb-4",
                         md=8,
                         sm=8,
                         children=[
@@ -167,7 +209,6 @@ def index(request):
                             html.Hr(),
                             html.Div(id="data-table")
                         ],
-                        className="container mt-4 shadow-lg mb-4",
                     ),
 
                 ],
@@ -175,7 +216,6 @@ def index(request):
 
             dbc.Row(
                 children=[
-
                     dbc.Col(
                         className="container mt-2 shadow-lg mb-4",
                         children=[
@@ -193,6 +233,16 @@ def index(request):
                                         label="Grafik",
                                         id="graph-tab",
                                         children=[dcc.Graph(id="graph-display")],
+                                    ),
+
+                                    dcc.Tab(
+                                        label="Model",
+                                        id="model-tab",
+                                        children=[
+                                            dcc.Graph(id="model-graph"),
+                                            html.Hr(),
+                                            html.Div(id="model-results"),
+                                        ]
                                     )
                                 ]
                             ),
@@ -213,7 +263,7 @@ def index(request):
     )
     def read_data(contents, filename):
 
-        global df
+        df = None
 
         if contents is None:
             raise PreventUpdate
@@ -228,15 +278,19 @@ def index(request):
         Output("file-info", "children"),
         Output('data-table', 'children'),
         Output('stats-table', 'children'),
+
         Output('x-axis', 'options'),
         Output('y-axis', 'options'),
         Output('color', 'options'),
+
+        Output('depend', 'options'),
+        Output('independ', 'options'),
 
         Input('data-info', 'data'),
         Input('data-filename', 'data'),
     )
     def table(store_data, filename):
-        global df
+        df = None
 
         if store_data is None:
             raise PreventUpdate
@@ -246,8 +300,7 @@ def index(request):
             # Assume that the user uploaded a CSV file
             df = pd.read_csv(io.StringIO(store_data))
 
-        elif 'xls' in filename:
-
+        elif 'xls' or "xlsx" in filename:
             # Assume that the user uploaded an excel file
             df = pd.read_excel(io.BytesIO(store_data))
 
@@ -278,7 +331,7 @@ def index(request):
             page_size=10
         )]
 
-        return file_info, data_table, stats_table, axis, axis, axis
+        return file_info, data_table, stats_table, axis, axis, axis, axis, axis
 
     @app.callback(
         Output("graph-display", "figure"),
@@ -293,9 +346,10 @@ def index(request):
         Input("text_auto", "value"),
         Input("histfunc", "value"),
         Input("marginal", "value"),
+
     )
     def graph_display(data, filename, graph_type, x_axis, y_axis, color, histnorm, text_auto, histfunc, marginal):
-        global df, fig, graph
+
 
         if graph_type is None:
             raise PreventUpdate
@@ -304,7 +358,7 @@ def index(request):
             # Assume that the user uploaded a CSV file
             df = pd.read_csv(io.StringIO(data))
 
-        elif 'xls' in filename:
+        elif 'xls' or "xlsx" in filename:
             # Assume that the user uploaded an excel file
             df = pd.read_excel(io.BytesIO(data))
 
@@ -320,5 +374,39 @@ def index(request):
             fig = px.histogram(df, x=x_axis, y=y_axis, histnorm=histnorm, text_auto=bool(text_auto), color=color, histfunc=histfunc, marginal=marginal)
 
         return fig
+
+    @app.callback(
+        Output("model-graph", "figure"),
+        Output("model-results", "children"),
+
+        Input("data-info", "data"),
+        Input("data-filename", "data"),
+
+        Input("model", "value"),
+        Input("depend", "value"),
+        Input("independ", "value"),
+    )
+    def model(data, filename, model, depend, independ):
+
+        global figure, df, results
+
+        if model is None:
+            raise PreventUpdate
+
+        if 'csv' in filename:
+            # Assume that the user uploaded a CSV file
+            df = pd.read_csv(io.StringIO(data))
+
+        elif 'xls' or "xlsx" in filename:
+            # Assume that the user uploaded an excel file
+            df = pd.read_excel(io.BytesIO(data))
+
+        if model == 'linear':
+            figure = px.scatter(df, x=depend, y=independ, trendline="ols")
+            trendline_results = px.get_trendline_results(figure)
+            results = trendline_results.px_fit_results.iloc[0].summary()
+
+        return figure, html.Pre(children=results.as_text(), style={'whiteSpace': 'pre-wrap','background-color':'lightgray', 'text-align':'center'})
+
 
     return render(request, 'index.html')
