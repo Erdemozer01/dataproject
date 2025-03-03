@@ -35,7 +35,7 @@ def index(request):
                         md=4,
                         sm=4,
                         children=[
-                            dbc.Tabs(
+                            dcc.Tabs(
                                 id="tabs",
                                 className="pt-2",
                                 children=[
