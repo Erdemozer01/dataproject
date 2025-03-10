@@ -41,7 +41,9 @@ INSTALLED_APPS = [
     'django_plotly_dash.apps.DjangoPlotlyDashConfig',
 ]
 
-DATA_UPLOAD_MAX_MEMORY_SIZE=None
+DATA_UPLOAD_MAX_MEMORY_SIZE = None
+
+FILE_UPLOAD_MAX_MEMORY_SIZE = None
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',

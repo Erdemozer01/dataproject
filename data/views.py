@@ -1,5 +1,4 @@
 import base64
-import datetime
 
 from dash.exceptions import PreventUpdate
 from django.shortcuts import render
@@ -10,10 +9,14 @@ from data.components import navbar
 import pandas as pd
 import io
 import plotly.express as px
+import statsmodels.formula.api as sm
+
+import statsmodels.api as stm
+from sklearn.cluster import KMeans
+import plotly.graph_objs as go
 
 
 def index(request):
-
     app = DjangoDash(
         name='index',
         external_stylesheets=[dbc.themes.BOOTSTRAP],
@@ -70,7 +73,8 @@ def index(request):
                                                     'margin-bottom': '2%',
                                                 },
                                                 # Allow multiple files to be uploaded
-                                                multiple=False
+                                                multiple=False,
+
                                             ),
 
                                             dcc.Store(id="data-info"),
@@ -90,6 +94,9 @@ def index(request):
                                                 options=[
                                                     {'label': 'Line', 'value': 'line'},
                                                     {'label': 'Histogram (Dağılım)', 'value': 'hist'},
+                                                    {'label': 'Box', 'value': 'box'},
+                                                    {'label': 'Bar', 'value': 'bar'},
+                                                    {'label': 'Heatmap', 'value': 'heatmap'},
                                                 ]
                                             ),
                                             dbc.Label('X Ekseni', className="mt-3", style={"font-weight": "bold"}),
@@ -116,7 +123,8 @@ def index(request):
                                                 ]
                                             ),
 
-                                            dbc.Label("Histogram Fonksiyonu", style={"font-weight": "bold"}, className="mt-3"),
+                                            dbc.Label("Histogram Fonksiyonu", style={"font-weight": "bold"},
+                                                      className="mt-3"),
                                             dcc.Dropdown(
                                                 id='histfunc',
                                                 placeholder='Histogram Fonksiyonu',
@@ -140,8 +148,6 @@ def index(request):
                                                     {'label': 'violin', 'value': 'violin'},
                                                 ]
                                             ),
-
-
 
                                             dcc.Checklist(
                                                 id="text_auto",
@@ -167,29 +173,31 @@ def index(request):
                                                 options=[
                                                     {'label': 'LinearRegresyon', 'value': 'linear'},
                                                     {'label': 'MultipleLinearRegresyon', 'value': 'mlinear'},
+                                                    {'label': 'K-NN', 'value': 'knn'},
                                                 ]
                                             ),
 
-                                            dbc.Label("Bağımlı Değişken", style={"font-weight": "bold"},
+                                            dbc.Label("Bağımsız Değişken (y)", style={"font-weight": "bold"},
                                                       className="mt-3"),
-                                            dcc.Dropdown(
-                                                id='depend',
-
-                                                placeholder='Bağımlı Değişken',
-                                                className="mb-2",
-
-                                            ),
-
-                                            dbc.Label("Bağımsız Değişken", style={"font-weight": "bold"},
-                                                      className="mt-3"),
-
                                             dcc.Dropdown(
                                                 id='independ',
 
+                                                placeholder='Bağımlı Değişken',
+                                                className="mb-2",
+                                            ),
+
+                                            dbc.Label("Bağımlı Değişken (x)", style={"font-weight": "bold"},
+                                                      className="mt-3"),
+
+                                            dcc.Dropdown(
+                                                id='depend',
+                                                multi=True,
                                                 placeholder='Bağımsız Değişken',
                                                 className="mb-2",
-
                                             ),
+
+                                            dbc.Label("Kümeleme Sayısı"),
+                                            dbc.Input(id="cluster-count", type="number", value=3),
 
                                             html.Hr()
                                         ]
@@ -241,12 +249,14 @@ def index(request):
                                         children=[
                                             dcc.Graph(id="model-graph"),
                                             html.Hr(),
-                                            html.Div(id="model-results"),
+                                            html.Pre(
+                                                id="model-results",
+                                                style={'whiteSpace': 'pre-wrap', 'text-align': 'center'}
+                                            )
                                         ]
                                     )
                                 ]
                             ),
-
                         ]
                     )
                 ],
@@ -262,8 +272,6 @@ def index(request):
         State("upload-data", "filename"),
     )
     def read_data(contents, filename):
-
-        df = None
 
         if contents is None:
             raise PreventUpdate
@@ -313,23 +321,27 @@ def index(request):
 
         axis = [i for i in df.columns]
 
-        data_table = [dash_table.DataTable(
-            data=df.to_dict('records'),
-            columns=[{"name": i, "id": i} for i in df.columns],
-            page_size=10,
-            style_table={'overflowX': 'auto'},
-        )]
+        data_table = [
+            dash_table.DataTable(
+                data=df.to_dict('records'),
+                columns=[{"name": i, "id": i} for i in df.columns],
+                page_size=10,
+                style_table={'overflowX': 'auto'},
+            )
+        ]
 
         df = df.describe()
         df.reset_index(inplace=True)
 
-        stats_table = [dash_table.DataTable(
-            id='stats-table',
-            data=df.to_dict('records'),
-            columns=[{"name": i, "id": i} for i in df.columns],
-            style_table={'overflowX': 'auto'},
-            page_size=10
-        )]
+        stats_table = [
+            dash_table.DataTable(
+                id='stats-table',
+                data=df.to_dict('records'),
+                columns=[{"name": i, "id": i} for i in df.columns],
+                style_table={'overflowX': 'auto'},
+                page_size=10
+            )
+        ]
 
         return file_info, data_table, stats_table, axis, axis, axis, axis, axis
 
@@ -350,7 +362,6 @@ def index(request):
     )
     def graph_display(data, filename, graph_type, x_axis, y_axis, color, histnorm, text_auto, histfunc, marginal):
 
-
         if graph_type is None:
             raise PreventUpdate
 
@@ -363,15 +374,21 @@ def index(request):
             df = pd.read_excel(io.BytesIO(data))
 
         if graph_type == 'line':
-
-            if x_axis and y_axis:
-                fig = px.line(df, x=x_axis, y=y_axis, color=color)
-
-            else:
-                raise PreventUpdate
+            fig = px.line(df, x=x_axis, y=y_axis, color=color)
 
         elif graph_type == 'hist':
-            fig = px.histogram(df, x=x_axis, y=y_axis, histnorm=histnorm, text_auto=bool(text_auto), color=color, histfunc=histfunc, marginal=marginal)
+            fig = px.histogram(df, x=x_axis, y=y_axis, histnorm=histnorm, text_auto=bool(text_auto), color=color,
+                               histfunc=histfunc, marginal=marginal)
+
+        elif graph_type == 'box':
+            fig = px.box(df, x=x_axis, y=y_axis, color=color)
+
+        elif graph_type == 'bar':
+            fig = px.bar(df, x=x_axis, y=y_axis, color=color, barmode="group")
+
+        elif graph_type == 'heatmap':
+
+            fig = px.density_heatmap(df,x=x_axis, y=y_axis, histnorm=histnorm, text_auto=bool(text_auto))
 
         return fig
 
@@ -385,8 +402,9 @@ def index(request):
         Input("model", "value"),
         Input("depend", "value"),
         Input("independ", "value"),
+        Input("cluster-count", "value"),
     )
-    def model(data, filename, model, depend, independ):
+    def model(data, filename, model, depend, independ, n_clusters):
 
         global figure, df, results
 
@@ -401,12 +419,92 @@ def index(request):
             # Assume that the user uploaded an excel file
             df = pd.read_excel(io.BytesIO(data))
 
+
         if model == 'linear':
-            figure = px.scatter(df, x=depend, y=independ, trendline="ols")
-            trendline_results = px.get_trendline_results(figure)
-            results = trendline_results.px_fit_results.iloc[0].summary()
 
-        return figure, html.Pre(children=results.as_text(), style={'whiteSpace': 'pre-wrap','background-color':'lightgray', 'text-align':'center'})
+            figure = px.scatter(df, x=depend, y=independ, trendline="ols", trendline_scope="overall")
 
+            y = df[independ]
+
+            x = df[depend[0]]
+
+            x = stm.add_constant(x)
+
+            stats_model = stm.OLS(y, x).fit()
+
+            results = stats_model.summary()
+
+            predict = stats_model.predict(x)
+
+            print(predict)
+
+            print(df.describe())
+
+
+        elif model == 'mlinear':
+
+            figure = px.scatter(df, x=depend, y=independ, trendline="ols", trendline_scope="overall")
+
+            independ = f"{independ} ~ "
+
+            depend = " + ".join(depend)
+
+            formula = independ + depend
+
+            stats_model = sm.ols(formula=formula, data=df).fit()
+
+            results = stats_model.summary()
+
+        elif model == 'knn':
+
+            km = KMeans(n_clusters=max(n_clusters, 1))
+
+            x = depend[0]
+            y = independ
+
+            df = df.loc[:, [x, y]]
+
+            km.fit(df.values)
+
+            df["cluster"] = km.labels_
+
+            centers = km.cluster_centers_
+
+            data = [
+                go.Scatter(
+                    x=df.loc[df.cluster == c, x],
+                    y=df.loc[df.cluster == c, y],
+                    mode="markers",
+                    marker={"size": 8},
+                    name="Cluster {}".format(c),
+                )
+                for c in range(n_clusters)
+            ]
+
+            data.append(
+                go.Scatter(
+                    x=centers[:, 0],
+                    y=centers[:, 1],
+                    mode="markers",
+                    marker={"color": "#000", "size": 12, "symbol": "diamond"},
+                    name="Kümeleme Merkezi",
+                )
+            )
+
+            layout = {"xaxis": {"title": x}, "yaxis": {"title": y}}
+
+            figure = go.Figure(data=data, layout=layout)
+
+            independ = f"{independ} ~ "
+
+            depend = " + ".join(depend)
+
+            formula = independ + depend
+
+            stats_model = sm.ols(formula=formula, data=df).fit()
+
+            results = stats_model.summary()
+
+        return figure, results.as_text()
 
     return render(request, 'index.html')
