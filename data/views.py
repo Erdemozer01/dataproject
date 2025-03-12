@@ -165,6 +165,7 @@ def index(request):
                                     dcc.Tab(
                                         label="Model",
                                         children=[
+
                                             dbc.Label("Model", style={"font-weight": "bold"}, className="mt-3"),
                                             dcc.Dropdown(
                                                 id='model',
@@ -174,6 +175,7 @@ def index(request):
                                                     {'label': 'LinearRegresyon', 'value': 'linear'},
                                                     {'label': 'MultipleLinearRegresyon', 'value': 'mlinear'},
                                                     {'label': 'K-NN', 'value': 'knn'},
+                                                    {'label': 'Tahmin', 'value': 'predict'},
                                                 ]
                                             ),
 
@@ -196,7 +198,8 @@ def index(request):
                                                 className="mb-2",
                                             ),
 
-                                            dbc.Label("Kümeleme Sayısı"),
+                                            dbc.Label("Kümeleme Sayısı", style={"font-weight": "bold"}, className="mt-3"),
+
                                             dbc.Input(id="cluster-count", type="number", value=3),
 
                                             html.Hr()
@@ -213,9 +216,20 @@ def index(request):
                         md=8,
                         sm=8,
                         children=[
-                            html.H4(["Veri Seti"], className="text-center mt-3"),
-                            html.Hr(),
-                            html.Div(id="data-table")
+                           dcc.Tabs(
+                               [
+                                   dcc.Tab(
+                                       label="Veri seti",
+                                       id="data-table",
+                                   ),
+
+                                   dcc.Tab(
+                                       label="Tahmin",
+                                       id="data-predict",
+                                   ),
+
+                               ]
+                           )
                         ],
                     ),
 
@@ -231,6 +245,7 @@ def index(request):
                                 id="tabs",
                                 className="pt-2",
                                 children=[
+
                                     dcc.Tab(
                                         label="İstatistik",
                                         className="p-3",
@@ -252,9 +267,16 @@ def index(request):
                                             html.Pre(
                                                 id="model-results",
                                                 style={'whiteSpace': 'pre-wrap', 'text-align': 'center'}
-                                            )
+                                            ),
+
                                         ]
-                                    )
+                                    ),
+
+                                    dcc.Tab(
+                                        label="Model İstatistik Tablosu",
+                                        className="p-3",
+                                        id="model-stats-table",
+                                    ),
                                 ]
                             ),
                         ]
@@ -296,8 +318,13 @@ def index(request):
 
         Input('data-info', 'data'),
         Input('data-filename', 'data'),
+        Input("model", "value"),
+        prevent_initial_call=True
     )
-    def table(store_data, filename):
+    def table(store_data, filename, model):
+
+        stats_table = None
+
         df = None
 
         if store_data is None:
@@ -331,11 +358,11 @@ def index(request):
         ]
 
         df = df.describe()
+
         df.reset_index(inplace=True)
 
         stats_table = [
             dash_table.DataTable(
-                id='stats-table',
                 data=df.to_dict('records'),
                 columns=[{"name": i, "id": i} for i in df.columns],
                 style_table={'overflowX': 'auto'},
@@ -393,8 +420,10 @@ def index(request):
         return fig
 
     @app.callback(
+
         Output("model-graph", "figure"),
         Output("model-results", "children"),
+        Output('model-stats-table', 'children'),
 
         Input("data-info", "data"),
         Input("data-filename", "data"),
@@ -403,10 +432,11 @@ def index(request):
         Input("depend", "value"),
         Input("independ", "value"),
         Input("cluster-count", "value"),
+
     )
     def model(data, filename, model, depend, independ, n_clusters):
 
-        global figure, df, results
+        global figure, df, results, st_table
 
         if model is None:
             raise PreventUpdate
@@ -418,7 +448,6 @@ def index(request):
         elif 'xls' or "xlsx" in filename:
             # Assume that the user uploaded an excel file
             df = pd.read_excel(io.BytesIO(data))
-
 
         if model == 'linear':
 
@@ -434,12 +463,22 @@ def index(request):
 
             results = stats_model.summary()
 
-            predict = stats_model.predict(x)
+            summary = results.as_text()
 
-            print(predict)
+            df = df.describe()
 
-            print(df.describe())
+            df.reset_index(inplace=True)
 
+            st_table = [
+
+                dash_table.DataTable(
+                    data=df.to_dict('records'),
+                    columns=[{"name": i, "id": i} for i in df.columns],
+                    style_table={'overflowX': 'auto'},
+                    page_size=10
+                )
+
+            ]
 
         elif model == 'mlinear':
 
@@ -455,14 +494,31 @@ def index(request):
 
             results = stats_model.summary()
 
-        elif model == 'knn':
+            summary = results.as_text()
 
-            km = KMeans(n_clusters=max(n_clusters, 1))
+            df = df.describe()
+
+            df.reset_index(inplace=True)
+
+            st_table = [
+                dash_table.DataTable(
+                    data=df.to_dict('records'),
+                    columns=[{"name": i, "id": i} for i in df.columns],
+                    style_table={'overflowX': 'auto'},
+                    page_size=10
+                )
+            ]
+
+        elif model == 'knn':
 
             x = depend[0]
             y = independ
 
             df = df.loc[:, [x, y]]
+
+            df.dropna(inplace=True)
+
+            km = KMeans(n_clusters=max(n_clusters, 1))
 
             km.fit(df.values)
 
@@ -505,6 +561,49 @@ def index(request):
 
             results = stats_model.summary()
 
-        return figure, results.as_text()
+            summary = results.as_text()
+
+            df = df.describe()
+
+            df.reset_index(inplace=True)
+
+            st_table = [
+                dash_table.DataTable(
+                    data=df.to_dict('records'),
+                    columns=[{"name": i, "id": i} for i in df.columns],
+                    style_table={'overflowX': 'auto'},
+                    page_size=10
+                )
+            ]
+
+        elif model == 'predict':
+
+            figure = None
+            summary = None
+
+            # Target
+            x = df[depend]
+            # features
+            y = df[independ]
+            # table
+
+            df = pd.concat([y, x])
+
+            data_st = df.describe()
+
+            data_st.reset_index(inplace=True)
+
+            st_table = [
+                dash_table.DataTable(
+                    data=data_st.to_dict('records'),
+                    columns=[{"name": i, "id": i} for i in data_st.columns],
+                    style_table={'overflowX': 'auto'},
+                    page_size=10
+                )
+            ]
+
+            print(df)
+
+        return figure, summary, st_table
 
     return render(request, 'index.html')
