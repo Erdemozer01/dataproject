@@ -1,13 +1,20 @@
 import base64
+import io
 
 from dash.exceptions import PreventUpdate
 from django.shortcuts import render
 from django_plotly_dash import DjangoDash
 import dash_bootstrap_components as dbc
 from dash import Input, Output, html, dcc, dash_table, State
-from data.components import navbar
+from sklearn import preprocessing
+from sklearn.datasets import make_moons
+from sklearn.model_selection import train_test_split
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.preprocessing import StandardScaler
+from sklearn.metrics import accuracy_score, classification_report
+from data.components import navbar, build_range, build_figure
 import pandas as pd
-import io
+import numpy as np
 import plotly.express as px
 import statsmodels.formula.api as sm
 
@@ -97,6 +104,7 @@ def index(request):
                                                     {'label': 'Box', 'value': 'box'},
                                                     {'label': 'Bar', 'value': 'bar'},
                                                     {'label': 'Heatmap', 'value': 'heatmap'},
+                                                    {'label': 'Koorelasyon Matrix', 'value': 'corr_heatmap'},
                                                 ]
                                             ),
                                             dbc.Label('X Ekseni', className="mt-3", style={"font-weight": "bold"}),
@@ -105,6 +113,8 @@ def index(request):
                                             dcc.Dropdown(id='y-axis', placeholder="Y Ekseni Seçiniz"),
                                             dbc.Label('Gruplandır', className="mt-3", style={"font-weight": "bold"}),
                                             dcc.Dropdown(id='color'),
+                                            dbc.Label('Renklendirme', className="mt-3", style={"font-weight": "bold"}),
+                                            dcc.Dropdown(id='colorscales', options=px.colors.named_colorscales(), value='viridis'),
                                             html.Hr()
                                         ]
                                     ),
@@ -174,8 +184,8 @@ def index(request):
                                                 options=[
                                                     {'label': 'LinearRegresyon', 'value': 'linear'},
                                                     {'label': 'MultipleLinearRegresyon', 'value': 'mlinear'},
-                                                    {'label': 'K-NN', 'value': 'knn'},
-                                                    {'label': 'Tahmin', 'value': 'predict'},
+                                                    {'label': 'K-means clustering', 'value': 'kmc'},
+                                                    {'label': 'K-Nearest Neighbors', 'value': 'knn'},
                                                 ]
                                             ),
 
@@ -198,7 +208,8 @@ def index(request):
                                                 className="mb-2",
                                             ),
 
-                                            dbc.Label("Kümeleme Sayısı", style={"font-weight": "bold"}, className="mt-3"),
+                                            dbc.Label("Kümeleme Sayısı", style={"font-weight": "bold"},
+                                                      className="mt-3"),
 
                                             dbc.Input(id="cluster-count", type="number", value=3),
 
@@ -215,21 +226,22 @@ def index(request):
                         className="container mt-4 shadow-lg mb-4",
                         md=8,
                         sm=8,
+
                         children=[
-                           dcc.Tabs(
-                               [
-                                   dcc.Tab(
-                                       label="Veri seti",
-                                       id="data-table",
-                                   ),
+                            dcc.Tabs(
+                                [
+                                    dcc.Tab(
+                                        label="Veri seti",
+                                        id="data-table",
+                                    ),
 
-                                   dcc.Tab(
-                                       label="Tahmin",
-                                       id="data-predict",
-                                   ),
+                                    dcc.Tab(
+                                        label="Tahmin",
+                                        id="data-predict",
+                                    ),
 
-                               ]
-                           )
+                                ]
+                            )
                         ],
                     ),
 
@@ -238,12 +250,13 @@ def index(request):
 
             dbc.Row(
                 children=[
+
                     dbc.Col(
                         className="container mt-2 shadow-lg mb-4",
                         children=[
-                            dbc.Tabs(
+                            dcc.Tabs(
                                 id="tabs",
-                                className="pt-2",
+                                className="pt-2 mb-2",
                                 children=[
 
                                     dcc.Tab(
@@ -280,6 +293,7 @@ def index(request):
                                 ]
                             ),
                         ]
+
                     )
                 ],
             ),
@@ -318,10 +332,9 @@ def index(request):
 
         Input('data-info', 'data'),
         Input('data-filename', 'data'),
-        Input("model", "value"),
-        prevent_initial_call=True
+
     )
-    def table(store_data, filename, model):
+    def table(store_data, filename):
 
         stats_table = None
 
@@ -373,6 +386,7 @@ def index(request):
         return file_info, data_table, stats_table, axis, axis, axis, axis, axis
 
     @app.callback(
+
         Output("graph-display", "figure"),
 
         Input("data-info", "data"),
@@ -384,6 +398,7 @@ def index(request):
         Input("histnorm", "value"),
         Input("text_auto", "value"),
         Input("histfunc", "value"),
+        Input("marginal", "value"),
         Input("marginal", "value"),
 
     )
@@ -415,7 +430,10 @@ def index(request):
 
         elif graph_type == 'heatmap':
 
-            fig = px.density_heatmap(df,x=x_axis, y=y_axis, histnorm=histnorm, text_auto=bool(text_auto))
+            fig = px.density_heatmap(df, x=x_axis, y=y_axis, histnorm=histnorm, text_auto=bool(text_auto))
+
+        elif graph_type == 'corr_heatmap':
+            fig = px.imshow(df.corr(), text_auto=True, aspect="auto", color_continuous_scale="viridis")
 
         return fig
 
@@ -424,6 +442,7 @@ def index(request):
         Output("model-graph", "figure"),
         Output("model-results", "children"),
         Output('model-stats-table', 'children'),
+        Output('data-predict', 'children'),
 
         Input("data-info", "data"),
         Input("data-filename", "data"),
@@ -436,7 +455,7 @@ def index(request):
     )
     def model(data, filename, model, depend, independ, n_clusters):
 
-        global figure, df, results, st_table
+        global figure, df, results, st_table, data_predict, summary
 
         if model is None:
             raise PreventUpdate
@@ -450,6 +469,8 @@ def index(request):
             df = pd.read_excel(io.BytesIO(data))
 
         if model == 'linear':
+
+            data_predict = None
 
             figure = px.scatter(df, x=depend, y=independ, trendline="ols", trendline_scope="overall")
 
@@ -482,17 +503,25 @@ def index(request):
 
         elif model == 'mlinear':
 
+            data_predict = None
+
             figure = px.scatter(df, x=depend, y=independ, trendline="ols", trendline_scope="overall")
 
-            independ = f"{independ} ~ "
+            X = df[depend]
 
-            depend = " + ".join(depend)
+            y = df[independ]
 
-            formula = independ + depend
+            # Initialize the StandardScaler object
+            scaler = StandardScaler()
 
-            stats_model = sm.ols(formula=formula, data=df).fit()
+            X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
-            results = stats_model.summary()
+            # Add a constant to the model
+            X_train_sm = stm.add_constant(X_train)
+
+            model_sm = stm.OLS(y_train, X_train_sm).fit()
+
+            results = model_sm.summary()
 
             summary = results.as_text()
 
@@ -509,9 +538,12 @@ def index(request):
                 )
             ]
 
-        elif model == 'knn':
+        elif model == 'kmc':
+
+            data_predict = None
 
             x = depend[0]
+
             y = independ
 
             df = df.loc[:, [x, y]]
@@ -532,7 +564,7 @@ def index(request):
                     y=df.loc[df.cluster == c, y],
                     mode="markers",
                     marker={"size": 8},
-                    name="Cluster {}".format(c),
+                    name="Kümeleme {}".format(c),
                 )
                 for c in range(n_clusters)
             ]
@@ -576,18 +608,40 @@ def index(request):
                 )
             ]
 
-        elif model == 'predict':
+        elif model == 'knn':
 
             figure = None
+
             summary = None
 
-            # Target
-            x = df[depend]
-            # features
-            y = df[independ]
-            # table
+            X = df[depend]
+            y = df[independ].values
 
-            df = pd.concat([y, x])
+            # Veri setini eğitim ve test setlerine ayırma
+            X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+            # Veriyi ölçeklendirme
+            scaler = StandardScaler()
+            X_train_scaled = scaler.fit_transform(X_train)
+            X_test_scaled = scaler.transform(X_test)
+
+            # KNN modelini oluşturma ve eğitme
+            knn = KNeighborsClassifier(n_neighbors=n_clusters)
+            knn.fit(X_train_scaled, y_train)
+
+            # Tahmin yapma
+            y_pred = knn.predict(X_test_scaled)
+
+            # Değerlendirme
+            accuracy = accuracy_score(y_test, y_pred)
+            print(f"Doğruluk: {accuracy}")
+            print(classification_report(y_test, y_pred))
+
+
+            df_predict = pd.concat([df[independ], df[depend], pd.Series(y_pred)], names=[depend, independ, "Tahmin"], axis=1)
+
+            # table
+            df = pd.concat([df[depend], df[independ]])
 
             data_st = df.describe()
 
@@ -602,8 +656,16 @@ def index(request):
                 )
             ]
 
-            print(df)
+            data_predict = [
+                dash_table.DataTable(
+                    data=df_predict.to_dict('records'),
+                    columns=[{"name": i, "id": i} for i in df_predict.columns],
+                    style_table={'overflowX': 'auto'},
+                    page_size=10
+                ),
+                html.Div([f'Model Doğruluğu : %{round(accuracy * 10000, 2)}'], style={'marginBottom': 20, "marginLeft": 20}),
+            ]
 
-        return figure, summary, st_table
+        return figure, summary, st_table, data_predict
 
     return render(request, 'index.html')
